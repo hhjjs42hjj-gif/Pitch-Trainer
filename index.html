@@ -35,7 +35,14 @@
 <div><label for="medVolume">Volume <span id="medVolumeLabel">25%</span></label><input id="medVolume" type="range" min="0" max="60" value="25" step="1" style="width:100%"></div>
 </div>
 <div class="buttons" style="margin-top:18px"><button id="medPlay">▶ Play continuously</button><button id="medStop" class="secondary" disabled>■ Stop</button></div>
-<p class="hint">A gentle 0.6-second fade protects against sudden changes. Keep your device volume comfortable. Audio stops when you leave this section or hide the page.</p>
+<p class="hint">A gentle fade protects against sudden changes. Keep your device volume comfortable. Audio stops when you leave this section or hide the page.</p><div class="panel" style="margin-top:16px">
+<h3>Drone + Melody</h3><p class="hint">Start the drone above, then tap a melody pitch to hear it against the sustained note. Each melody note plays briefly; the drone continues underneath.</p>
+<div class="settings"><div><label for="melOctave">Melody octave</label><select id="melOctave"><option value="3">3</option><option value="4" selected>4</option><option value="5">5</option><option value="6">6</option></select></div>
+<div><label for="melDuration">Melody note duration</label><select id="melDuration"><option value=".4">Short · 0.4 sec</option><option value=".8" selected>Medium · 0.8 sec</option><option value="1.6">Long · 1.6 sec</option></select></div></div>
+<div id="melodyPitches" class="med-pitches" aria-label="Play melody notes"></div>
+<div class="buttons"><button id="melRandom" class="secondary">♪ Random melody note</button><button id="melSequence" class="secondary">▶ Play 8 random notes</button><button id="melStop" class="secondary">■ Stop melody</button></div>
+<p id="melStatus" class="hint" aria-live="polite">Choose a melody note. The drone pitch is selected above.</p>
+</div>
 </section></main><script>
 (()=>{'use strict';const $=id=>document.getElementById(id),svg=$('staff'),NS='http://www.w3.org/2000/svg';const letters=['C','D','E','F','G','A','B'],semitones=[0,2,4,5,7,9,11];let ctx,session=null,question=null,entered=[null,null],selected=0,answered=false,playing=false;const yBottom=175,step=12,xs=[270,430];let currentClef='treble';function el(tag,attrs,parent){let n=document.createElementNS(NS,tag);for(const [k,v]of Object.entries(attrs||{}))n.setAttribute(k,v);(parent||svg).append(n);return n}function diatonic(o,l){return o*7+l}function fromD(d,sharp=0){let o=Math.floor(d/7),l=((d%7)+7)%7;return {d,sharp,midi:12*(o+1)+semitones[l]+sharp,name:letters[l]+(sharp?'♯':'')+o}}function bottomD(){return currentClef==='treble'?diatonic(4,2):diatonic(2,4)} // E4 / G2
 function yFor(d){return yBottom-(d-bottomD())*step}function dFor(y){return bottomD()+Math.round((yBottom-y)/step)}function line(x1,y1,x2,y2,parent,extra={}){return el('line',{x1,y1,x2,y2,stroke:'#52637b','stroke-width':1.5,...extra},parent)}function draw(){let lines=$('lines'),notes=$('notes'),overlay=$('overlay');lines.replaceChildren();notes.replaceChildren();overlay.replaceChildren();for(let i=0;i<5;i++)line(85,yBottom-i*24,635,yBottom-i*24,lines);let clefText=currentClef==='treble'?'𝄞':'𝄢';el('text',{x:95,y:currentClef==='treble'?180:145,'font-size':currentClef==='treble'?95:74,fill:'#243750','font-family':'serif'},lines).textContent=clefText;for(let i=0;i<2;i++){el('text',{x:xs[i]-8,y:235,'font-size':14,fill:'#64748b'},lines).textContent='Note '+(i+1)}let all=[...entered.map((n,i)=>({n,x:xs[i],ghost:false})),...(answered&&question?question.notes.map((n,i)=>({n,x:xs[i]+54,ghost:true})):[])];for(let {n,x,ghost}of all){if(!n)continue;let y=yFor(n.d);for(let yy=yBottom;yy<=y+1;yy+=24)if(yy>yBottom)line(x-22,yy,x+22,yy,notes,{stroke:'#6c7c91'});for(let yy=yBottom-96;yy>=y-1;yy-=24)if(yy<yBottom-96)line(x-22,yy,x+22,yy,notes,{stroke:'#6c7c91'});el('ellipse',{cx:x,cy:y,rx:15,ry:10,transform:`rotate(-20 ${x} ${y})`,fill:ghost?'#169b55':(selected===entered.indexOf(n)&&!answered?'#1d63c6':'#25384f')},notes);line(x+13,y-3,x+13,y-50,notes,{stroke:ghost?'#169b55':'#25384f','stroke-width':2.3});if(n.sharp)el('text',{x:x-32,y:y+7,'font-size':29,fill:ghost?'#169b55':'#25384f'},notes).textContent='♯';}if(answered&&question)el('text',{x:505,y:235,'font-size':13,fill:'#169b55'},notes).textContent='Green = correct pitches';}
@@ -88,5 +95,20 @@ $('medTab').onclick=()=>{$('intervalLevel').hidden=true;$('chordLevel').hidden=t
 ['intervalTab','chordTab'].forEach(id=>$(id).addEventListener('click',()=>{stop();$('meditationLevel').hidden=true;$('medTab').classList.add('inactive')}));
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)stop()});
 render();
+})();
+</script><script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B'];
+let audio=null,active=[],sequence=0;
+function cancel(){sequence++;for(const {osc,gain} of active){try{gain.gain.setTargetAtTime(0,audio.currentTime,.025);osc.stop(audio.currentTime+.2)}catch(e){}}active=[];$('melStatus').textContent='Melody stopped.'}
+async function note(pc){try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();await audio.resume();const oct=Number($('melOctave').value),midi=12*(oct+1)+pc,freq=440*Math.pow(2,(midi-69)/12),t=audio.currentTime,dur=Number($('melDuration').value);
+const osc=audio.createOscillator(),gain=audio.createGain();osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(.0001,t);gain.gain.exponentialRampToValueAtTime(.17,t+.035);gain.gain.setValueAtTime(.17,t+Math.max(.04,dur-.13));gain.gain.exponentialRampToValueAtTime(.0001,t+dur);osc.connect(gain).connect(audio.destination);osc.start(t);osc.stop(t+dur+.03);active.push({osc,gain});osc.onended=()=>{active=active.filter(x=>x.osc!==osc)};$('melStatus').textContent='Melody: '+names[pc]+oct+' · '+Math.round(freq*10)/10+' Hz'}catch(e){$('melStatus').textContent='Audio unavailable. Check browser sound settings.'}}
+const grid=$('melodyPitches');names.forEach((name,i)=>{const b=document.createElement('button');b.type='button';b.textContent=name;b.onclick=()=>{cancel();note(i)};grid.append(b)});
+$('melRandom').onclick=()=>{cancel();note(Math.floor(Math.random()*12))};
+$('melSequence').onclick=async()=>{cancel();const token=sequence;for(let i=0;i<8;i++){if(token!==sequence||$('meditationLevel').hidden||document.hidden)break;await note(Math.floor(Math.random()*12));await new Promise(resolve=>setTimeout(resolve,Number($('melDuration').value)*1000+170))}};
+$('melStop').onclick=cancel;
+['intervalTab','chordTab','medStop'].forEach(id=>$(id).addEventListener('click',cancel));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)cancel()});
 })();
 </script></body></html>
