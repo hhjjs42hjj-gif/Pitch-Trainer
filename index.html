@@ -90,7 +90,7 @@ $('chordNext').onclick=()=>{if(session.done>=session.total){$('chordFeedback').c
 })();
 </script><script>
 (()=>{'use strict';
-const $=id=>document.getElementById(id),names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B'];
+const $=id=>document.getElementById(id),names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
 let pitch=9,ctx=null,voices=[],master=null,playing=false;
 const pitches=$('medPitches');
 names.forEach((name,i)=>{let b=document.createElement('button');b.type='button';b.textContent=name;b.onclick=()=>{pitch=i;render();if(playing)startTone()};pitches.append(b)});
@@ -117,7 +117,7 @@ render();
 </script><script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
-const names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B'];
+const names=['C','C♯','D','E♭','E','F','F♯','G','A♭','A','B♭','B'];
 let audio=null,active=[],sequence=0;
 function cancel(){sequence++;for(const {osc,gain} of active){try{gain.gain.setTargetAtTime(0,audio.currentTime,.025);osc.stop(audio.currentTime+.2)}catch(e){}}active=[];$('melStatus').textContent='Melody stopped.'}
 async function note(pc){try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();await audio.resume();const oct=Number($('melOctave').value),midi=12*(oct+1)+pc,freq=440*Math.pow(2,(midi-69)/12),t=audio.currentTime,dur=Number($('melDuration').value);const voice=await window.PitchSound.play(audio,midi,t,dur);active.push({osc:{stop:()=>voice.stop()},gain:voice.output});$('melStatus').textContent='Melody: '+names[pc]+oct+' · '+Math.round(freq*10)/10+' Hz'}catch(e){$('melStatus').textContent='Audio unavailable. Check browser sound settings.'}}
